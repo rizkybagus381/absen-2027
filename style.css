@@ -1,0 +1,221 @@
+body {
+    font-family: 'Inter', sans-serif;
+    /* Sembunyikan overflow body agar tidak ada scrollbar saat loading overlay aktif */
+    overflow: hidden;
+}
+
+/* Scrollbar styling for attendance list */
+.scrollbar-thin::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgba(107, 114, 128, 0.5);
+    border-radius: 4px;
+}
+
+/* IMPORTANT: Ensures display: none overrides other styles */
+.hidden {
+    display: none !important;
+}
+
+/* Red urgent animation for "di luar lokasi" */
+@keyframes pulseRed {
+    0%, 100% {
+        background-color: #fee2e2;
+        color: #b91c1c;
+        box-shadow: 0 0 8px 2px rgba(185, 28, 28, 0.5);
+    }
+    50% {
+        background-color: #fecaca;
+        color: #991b1b;
+        box-shadow: 0 0 12px 4px rgba(153, 27, 27, 0.7);
+    }
+}
+.urgent-alert {
+    animation: pulseRed 1.8s ease-in-out infinite;
+    font-weight: 700;
+    border-color: #b91c1c;
+    border-width: 2px;
+}
+
+/* New: Styling for 'late' attendance status */
+.late-status {
+    background-color: #fef3c7; /* Light yellow background */
+    color: #a16207; /* Darker yellow/orange text */
+    font-weight: 600;
+    border-color: #d97706; /* Orange border */
+    border-width: 1px;
+}
+
+/* Table specific styling for better appearance */
+/* Removed global table styles for attendanceList to apply them per employee table */
+#registeredEmployeesList table {
+    min-width: 768px; /* Ensure table has a minimum width to enable horizontal scroll on small screens */
+}
+
+/* Styles for registered employees table */
+#registeredEmployeesList th,
+#registeredEmployeesList td {
+    padding: 12px 16px; /* Increased padding for better spacing */
+    border-bottom: 1px solid #e5e7eb; /* Subtle bottom border for rows */
+}
+
+#registeredEmployeesList thead th {
+    background-color: #f9fafb; /* Light background for header */
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.875rem; /* Smaller font for headers */
+    color: #4b5563; /* Darker gray for header text */
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+/* Last child of header row should have no bottom border to avoid double border */
+#registeredEmployeesList thead tr:last-child th {
+    border-bottom: none;
+}
+
+/* Remove bottom border for the last row of tbody */
+#employeesTableBody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Add striped rows for better readability */
+#employeesTableBody tr:nth-child(even) {
+    background-color: #f9fafb; /* Lighter background for even rows */
+}
+
+/* QR Scanner video/canvas styling */
+#qrVideo {
+    width: 100%;
+    height: auto; /* Maintain aspect ratio */
+    max-height: 300px; /* Max height to prevent excessive size */
+    display: block; /* Remove extra space below video */
+    margin: 0 auto;
+}
+#qrCanvas {
+    display: none; /* Canvas remains hidden */
+}
+
+/* Specific styles for individual employee attendance tables */
+.employee-attendance-card table th,
+.employee-attendance-card table td {
+    padding: 12px 16px; /* Increased padding for better spacing */
+    border-bottom: 1px solid #e5e7eb; /* Subtle bottom border for rows */
+}
+
+.employee-attendance-card table thead th {
+    background-color: #f9fafb; /* Light background for header */
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.875rem; /* Smaller font for headers */
+    color: #4b5563; /* Darker gray for header text */
+    /* New: Sticky positioning for headers in individual employee attendance tables */
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.employee-attendance-card table tbody tr:nth-child(even) {
+    background-color: #f9fafb; /* Lighter background for even rows */
+}
+
+/* Custom Loader Styles */
+.loader-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #1a1a1a; /* Changed to dark background */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999; /* Ensure it's on top of everything */
+    opacity: 1;
+    transition: opacity 0.5s ease-out; /* Smooth transition for hiding */
+    flex-direction: column; /* Stack SVG and text vertically */
+    gap: 20px; /* Space between SVG and text */
+    overflow: hidden; /* Added to prevent scrollbars if GIF overflows */
+}
+
+.loader-overlay.fade-out {
+    opacity: 0;
+    pointer-events: none; /* Disable interaction during fade-out */
+}
+
+/* Styles for the GIF - Adjusted for full screen and responsiveness */
+.loader-gif {
+    width: 100%; /* Make it fill the width of its container */
+    height: 100%; /* Make it fill the height of its container */
+    object-fit: cover; /* Cover the entire area, cropping if necessary */
+    border-radius: 0; /* Remove rounded corners to fill the screen edge-to-edge */
+    position: absolute; /* Position absolutely within the overlay */
+    top: 0;
+    left: 0;
+}
+
+/* Ensure the text is on top of the GIF */
+.loader-overlay p {
+    position: relative; /* Make text positionable */
+    z-index: 10000; /* Ensure it's above the GIF */
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.5); /* Add text shadow for readability */
+}
+
+/* Initially hide the main content until loading is complete */
+.content-wrapper {
+    opacity: 0;
+    transition: opacity 0.5s ease-in;
+    pointer-events: none; /* Disable interaction until visible */
+}
+.content-wrapper.visible {
+    opacity: 1;
+    pointer-events: auto;
+    /* Allow scrolling on the main content once visible */
+    overflow: auto;
+}
+
+/* Styles for the Google Map */
+#officeMap {
+    height: 400px; /* Set a fixed height for the map */
+    width: 100%;
+    border-radius: 8px;
+    margin-top: 16px;
+}
+
+/* Styling for autocomplete suggestions */
+/* Pastikan posisi relatif pada parent grid div */
+.relative > .md\:col-span-2 > #officeAddressSuggestions {
+    position: absolute;
+    z-index: 20;
+    background-color: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    max-height: 200px;
+    overflow-y: auto;
+    width: calc(100% - 0px); /* Adjust based on input width, no extra padding needed here */
+    left: 0;
+    right: 0;
+    top: calc(100% + 5px); /* Position below the input field */
+}
+
+#officeAddressSuggestions button {
+    display: block;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid #f3f4f6;
+    color: #4b5563;
+    transition: background-color 0.2s ease;
+}
+
+#officeAddressSuggestions button:hover {
+    background-color: #f9fafb;
+}
+
+#officeAddressSuggestions button:last-child {
+    border-bottom: none;
+}
