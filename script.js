@@ -1243,4 +1243,406 @@ window.initMap = function() {
                     qrCanvas.height = drawHeight;
 
                     ctx.drawImage(img, 0, 0, drawWidth, drawHeight);
-                    const imageData = ctx.getImageData(0, 0, qrCanvas.width,
+                    const imageData = ctx.getImageData(0, 0, qrCanvas.width, qrCanvas.height);
+                    const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                        inversionAttempts: "dontInvert",
+                    });
+
+                    if (code) {
+                        processScannedQr(code.data);
+                    } else {
+                        qrScanError.textContent = 'Tidak dapat menemukan QR Code pada gambar yang dipilih.';
+                        qrScanError.classList.remove('hidden');
+                        qrScanMessage.textContent = 'Pilih gambar lain atau gunakan kamera.';
+                    }
+                };
+                img.onerror = () => {
+                    qrScanError.textContent = 'Gagal memuat gambar.';
+                    qrScanError.classList.remove('hidden');
+                    qrScanMessage.textContent = 'Pilih gambar lain atau gunakan kamera.';
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+        qrImageInput.value = '';
+    });
+
+    startCameraScanBtn.addEventListener('click', () => {
+        startCameraScanner();
+    });
+
+    closeQrScannerModalBtn.addEventListener('click', () => {
+        stopQrScanner();
+        qrScannerModalContent.classList.remove('opacity-100', 'scale-100');
+        qrScannerModalContent.classList.add('opacity-0', 'scale-95');
+        qrScannerModalContent.addEventListener('transitionend', function handler() {
+            qrScannerModal.classList.add('hidden');
+            qrScannerModalContent.removeEventListener('transitionend', handler);
+            qrVideo.classList.remove('hidden');
+        }, {once: true});
+    });
+
+    async function startCameraScanner() {
+        if (videoStream) stopQrScanner();
+
+        try {
+            qrScanMessage.textContent = 'Memulai kamera...';
+            qrScanError.classList.add('hidden');
+            qrVideo.classList.remove('hidden');
+
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+            qrVideo.srcObject = stream;
+            videoStream = stream;
+
+            qrVideo.onloadedmetadata = () => {
+                qrVideo.play();
+                qrCanvas.width = qrVideo.videoWidth;
+                qrCanvas.height = qrVideo.videoHeight;
+                scanQrCode();
+                qrScanMessage.textContent = 'Arahkan kamera ke Kode QR.';
+            };
+        } catch (err) {
+            console.error("Error accessing camera: ", err);
+            let msg = 'Gagal mengakses kamera.';
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                msg = 'Izin kamera ditolak. Harap izinkan akses kamera di pengaturan browser Anda.';
+            } else if (err.name === 'NotFoundError') {
+                msg = 'Tidak ada kamera yang ditemukan.';
+            } else if (err.name === 'NotReadableError') {
+                msg = 'Kamera sedang digunakan oleh aplikasi lain.';
+            }
+            qrScanError.textContent = msg;
+            qrScanError.classList.remove('hidden');
+            qrScanMessage.textContent = '';
+            qrVideo.classList.add('hidden');
+        }
+    }
+
+    function scanQrCode() {
+        if (qrVideo.readyState === qrVideo.HAVE_ENOUGH_DATA) {
+            const ctx = qrCanvas.getContext('2d', { willReadFrequently: true });
+            if (qrCanvas.width !== qrVideo.videoWidth || qrCanvas.height !== qrVideo.videoHeight) {
+                qrCanvas.width = qrVideo.videoWidth;
+                qrCanvas.height = qrVideo.videoHeight;
+            }
+
+            ctx.drawImage(qrVideo, 0, 0, qrCanvas.width, qrCanvas.height);
+            const imageData = ctx.getImageData(0, 0, qrCanvas.width, qrCanvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                inversionAttempts: "dontInvert",
+            });
+
+            if (code) {
+                stopQrScanner();
+                processScannedQr(code.data);
+                return;
+            }
+        }
+        animationFrameId = requestAnimationFrame(scanQrCode);
+    }
+
+    function stopQrScanner() {
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+        if (videoStream) {
+            videoStream.getTracks().forEach(track => track.stop());
+            videoStream = null;
+            qrVideo.srcObject = null;
+        }
+    }
+
+    function processScannedQr(scannedId) {
+        const registeredEmployee = currentRegisteredEmployees.find(emp => emp.id === scannedId);
+
+        if (registeredEmployee) {
+            recordAttendance(registeredEmployee.name, registeredEmployee.id);
+            closeQrScannerModalBtn.click();
+        } else {
+            qrScanError.textContent = `Kode QR tidak valid atau karyawan tidak terdaftar: ${escapeHtml(scannedId)}`;
+            qrScanError.classList.remove('hidden');
+            qrScanMessage.textContent = 'Pilih gambar lain atau gunakan kamera.';
+            if (videoStream) {
+                startCameraScanner();
+            }
+        }
+    }
+
+    attendanceSettingsForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const timeValue = lateCutoffTimeInput.value;
+        const [hour, minute] = timeValue.split(':').map(Number);
+        const penalty = parseInt(latePenaltyAmountInput.value, 10);
+
+        if (isNaN(hour) || isNaN(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+            settingsSaveMsg.textContent = 'Format waktu tidak valid. Gunakan HH:MM.';
+            settingsSaveMsg.classList.remove('hidden', 'text-green-600');
+            settingsSaveMsg.classList.add('text-red-600');
+            return;
+        }
+        if (isNaN(penalty) || penalty < 0) {
+            settingsSaveMsg.textContent = 'Jumlah denda tidak valid. Masukkan angka positif.';
+            settingsSaveMsg.classList.remove('hidden', 'text-green-600');
+            settingsSaveMsg.classList.add('text-red-600');
+            return;
+        }
+
+        saveSettingsBtn.disabled = true;
+        settingsSaveMsg.textContent = 'Menyimpan pengaturan...';
+        settingsSaveMsg.classList.remove('hidden', 'text-red-600', 'text-green-600');
+
+        const success = await saveAttendanceSettings(hour, minute, penalty);
+        if (success) {
+            lateCutoffHour = hour;
+            lateCutoffMinute = minute;
+            latePenaltyPerMinute = penalty;
+        }
+        saveSettingsBtn.disabled = false;
+    });
+
+    // Event listeners for Office Location Settings
+    useCurrentLocationBtn.addEventListener('click', () => {
+        locationSaveMsg.textContent = 'Mendeteksi lokasi saat ini...';
+        locationSaveMsg.classList.remove('hidden', 'text-red-600', 'text-green-600');
+
+        if (!navigator.geolocation) {
+            locationSaveMsg.textContent = 'Browser Anda tidak mendukung deteksi lokasi.';
+            locationSaveMsg.classList.remove('hidden');
+            locationSaveMsg.classList.add('text-red-600');
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            async (position) => {
+                const { latitude, longitude } = position.coords;
+                officeLatInput.value = latitude.toFixed(7);
+                officeLonInput.value = longitude.toFixed(7);
+
+                // Update map marker
+                if (map && officeMarker) {
+                    const newLatLng = new google.maps.LatLng(latitude, longitude);
+                    officeMarker.setPosition(newLatLng);
+                    map.setCenter(newLatLng);
+                    map.setZoom(15);
+                }
+                // Reverse geocode to get address from current location using GoMaps.pro
+                await reverseGeocodeGoMaps(latitude, longitude);
+
+                locationSaveMsg.textContent = 'Lokasi saat ini berhasil didapatkan.';
+                locationSaveMsg.classList.remove('text-red-600', 'hidden');
+                locationSaveMsg.classList.add('text-green-600');
+                setTimeout(() => locationSaveMsg.classList.add('hidden'), 3000);
+            },
+            (error) => {
+                console.error("Error getting current location:", error);
+                let msg = 'Gagal mendapatkan lokasi saat ini.';
+                if (error.code === 1) msg = 'Izin lokasi ditolak. Harap izinkan akses lokasi.';
+                else if (error.code === 2) msg = 'Lokasi tidak tersedia.';
+                else if (error.code === 3) msg = 'Waktu tunggu permintaan lokasi habis.';
+                locationSaveMsg.textContent = msg;
+                locationSaveMsg.classList.remove('hidden', 'text-green-600');
+                locationSaveMsg.classList.add('text-red-600');
+            },
+            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+        );
+    });
+
+    saveOfficeLocationBtn.addEventListener('click', async () => {
+        const address = officeAddressInput.value.trim();
+        const radius = parseInt(acceptRadiusInput.value, 10);
+
+        if (address.length === 0) {
+            locationSaveMsg.textContent = 'Alamat kantor tidak boleh kosong.';
+            locationSaveMsg.classList.remove('hidden', 'text-green-600');
+            locationSaveMsg.classList.add('text-red-600');
+            return;
+        }
+
+        if (isNaN(radius) || radius < 10 || radius > 1000) {
+            locationSaveMsg.textContent = 'Input radius tidak valid. Masukkan angka antara 10 dan 1000.';
+            locationSaveMsg.classList.remove('hidden', 'text-green-600');
+            locationSaveMsg.classList.add('text-red-600');
+            return;
+        }
+
+        saveOfficeLocationBtn.disabled = true;
+        locationSaveMsg.textContent = 'Menyimpan lokasi kantor...';
+        locationSaveMsg.classList.remove('hidden', 'text-red-600', 'text-green-600');
+
+        let finalLat;
+        let finalLon;
+        let finalAddress;
+
+        try {
+            const geocodeResult = await geocodeAddressGoMaps(address);
+            if (geocodeResult && geocodeResult.lat && geocodeResult.lon) {
+                finalLat = geocodeResult.lat;
+                finalLon = geocodeResult.lon;
+                finalAddress = geocodeResult.formattedAddress;
+                officeLatInput.value = finalLat.toFixed(7);
+                officeLonInput.value = finalLon.toFixed(7);
+                officeAddressInput.value = finalAddress;
+
+                if (map && officeMarker) {
+                    const newLatLng = new google.maps.LatLng(finalLat, finalLon);
+                    officeMarker.setPosition(newLatLng);
+                    map.setCenter(newLatLng);
+                    map.setZoom(15);
+                }
+
+            } else {
+                locationSaveMsg.textContent = 'Gagal mengkonversi alamat ke koordinat. Pastikan alamat valid.';
+                locationSaveMsg.classList.remove('hidden', 'text-green-600');
+                locationSaveMsg.classList.add('text-red-600');
+                saveOfficeLocationBtn.disabled = false;
+                return;
+            }
+        } catch (e) {
+            console.error("Error during geocoding:", e);
+            locationSaveMsg.textContent = `Terjadi kesalahan saat mengkonversi alamat: ${e.message}`;
+            locationSaveMsg.classList.remove('hidden', 'text-green-600');
+            locationSaveMsg.classList.add('text-red-600');
+            saveOfficeLocationBtn.disabled = false;
+            return;
+        }
+
+        const success = await saveOfficeLocation(finalLat, finalLon, radius, finalAddress);
+        saveOfficeLocationBtn.disabled = false;
+    });
+
+    // Geocoding function (Address to Lat/Lon) using direct fetch to GoMaps.pro
+    async function geocodeAddressGoMaps(address) {
+        try {
+            const response = await fetch(`https://maps.gomaps.pro/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${MAPS_API_KEY}`);
+            const data = await response.json();
+            if (data.status === 'OK' && data.results && data.results.length > 0) {
+                const location = data.results[0].geometry.location;
+                const formattedAddress = data.results[0].formatted_address;
+                return { lat: location.lat, lon: location.lng, formattedAddress: formattedAddress };
+            } else {
+                console.error('GoMaps.pro Geocode was not successful: ' + data.status);
+                return null;
+            }
+        } catch (error) {
+            console.error('Error fetching GoMaps.pro Geocode:', error);
+            return null;
+        }
+    }
+
+    // Reverse Geocoding function (Lat/Lon to Address) using direct fetch to GoMaps.pro
+    async function reverseGeocodeGoMaps(lat, lon) {
+        try {
+            const response = await fetch(`https://maps.gomaps.pro/maps/api/geocode/json?latlng=${lat},${lon}&key=${MAPS_API_KEY}`);
+            const data = await response.json();
+            if (data.status === 'OK' && data.results && data.results.length > 0) {
+                return data.results[0].formatted_address;
+            } else {
+                console.error('GoMaps.pro Reverse Geocode was not successful: ' + data.status);
+                return "Alamat tidak ditemukan";
+            }
+        } catch (error) {
+            console.error('Error fetching GoMaps.pro Reverse Geocode:', error);
+            return "Alamat tidak ditemukan";
+        }
+    }
+
+    // Autocomplete logic for officeAddressInput
+    let autocompleteTimeout = null;
+    officeAddressInput.addEventListener('input', () => {
+        clearTimeout(autocompleteTimeout);
+        const query = officeAddressInput.value.trim();
+        if (query.length < 3) { // Mulai pencarian setelah minimal 3 karakter
+            officeAddressSuggestions.innerHTML = '';
+            officeAddressSuggestions.classList.add('hidden');
+            return;
+        }
+
+        autocompleteTimeout = setTimeout(async () => { // Make this async
+            try {
+                const response = await fetch(`https://maps.gomaps.pro/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&key=${MAPS_API_KEY}`);
+                const data = await response.json();
+
+                officeAddressSuggestions.innerHTML = '';
+                if (data.predictions && data.predictions.length) {
+                    officeAddressSuggestions.classList.remove('hidden');
+                    data.predictions.forEach(prediction => {
+                        const button = document.createElement('button');
+                        button.textContent = prediction.description;
+                        button.classList.add('px-4', 'py-3', 'text-left', 'w-full', 'hover:bg-gray-50', 'transition', 'border-b', 'border-gray-100');
+                        button.onclick = async () => { // Make this async
+                            officeAddressInput.value = prediction.description; // Isi input dengan deskripsi lengkap
+                            officeAddressSuggestions.classList.add('hidden'); // Sembunyikan saran
+
+                            try {
+                                const detailsResponse = await fetch(`https://maps.gomaps.pro/maps/api/place/details/json?place_id=${prediction.place_id}&key=${MAPS_API_KEY}`);
+                                const placeData = await detailsResponse.json();
+
+                                if (placeData.status === 'OK' && placeData.result && placeData.result.geometry) {
+                                    const location = placeData.result.geometry.location;
+                                    officeLatInput.value = location.lat.toFixed(7);
+                                    officeLonInput.value = location.lng.toFixed(7);
+                                    officeAddressInput.value = placeData.result.formatted_address || prediction.description; // Gunakan alamat terformat jika ada
+
+                                    // Update map marker
+                                    if (map && officeMarker) {
+                                        const newLatLng = new google.maps.LatLng(location.lat, location.lng);
+                                        officeMarker.setPosition(newLatLng);
+                                        map.setCenter(newLatLng);
+                                        map.setZoom(15);
+                                    }
+                                } else {
+                                    console.error('GoMaps.pro Places Details request failed due to ' + placeData.status);
+                                    locationSaveMsg.textContent = `Gagal mendapatkan detail tempat: ${placeData.status}`;
+                                    locationSaveMsg.classList.remove('hidden', 'text-green-600');
+                                    locationSaveMsg.classList.add('text-red-600');
+                                }
+                            } catch (error) {
+                                console.error('Error fetching GoMaps.pro Place Details:', error);
+                                locationSaveMsg.textContent = `Terjadi kesalahan saat mendapatkan detail tempat: ${error.message}`;
+                                locationSaveMsg.classList.remove('hidden', 'text-green-600');
+                                locationSaveMsg.classList.add('text-red-600');
+                            }
+                        };
+                        officeAddressSuggestions.appendChild(button);
+                    });
+                } else {
+                    officeAddressSuggestions.classList.add('hidden');
+                }
+            } catch (error) {
+                console.error('Error fetching GoMaps.pro Autocomplete:', error);
+                officeAddressSuggestions.classList.add('hidden');
+            }
+        }, 300); // Debounce 300ms
+    });
+
+    // Sembunyikan saran ketika klik di luar input atau saran
+    document.addEventListener('click', (event) => {
+        if (!officeAddressInput.contains(event.target) && !officeAddressSuggestions.contains(event.target)) {
+            officeAddressSuggestions.classList.add('hidden');
+        }
+    });
+
+    window.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            if (!adminLoginModal.classList.contains('hidden')) {
+                document.getElementById('closeLoginModalBtn').click();
+            } else if (!resetConfirmModal.classList.contains('hidden')) {
+                cancelResetBtn.click();
+            } else if (!addEmployeeModal.classList.contains('hidden')) {
+                cancelAddEmployeeBtn.click();
+            } else if (!deleteEmployeeConfirmModal.classList.contains('hidden')) {
+                cancelDeleteEmployeeBtn.click();
+            } else if (!qrCodeModal.classList.contains('hidden')) {
+                closeQrModalBtn.click();
+            } else if (!qrScannerModal.classList.contains('hidden')) {
+                closeQrScannerModalBtn.click();
+            }
+            officeAddressSuggestions.classList.add('hidden'); // Sembunyikan saran autocomplete saat Esc
+        }
+    });
+
+    updateUIForAdmin();
+
+})(); // End of self-executing anonymous function
