@@ -23,7 +23,7 @@ let lateCutoffMinute = 0;
 let latePenaltyPerMinute = 1000; // Rp. 1,000 per minute late
 
 // Variables for loading screen
-const MINIMUM_LOADING_TIME_MS = 7000; // 7 seconds (Updated from 5000ms)
+const MINIMUM_LOADING_TIME_MS = 5270; // 7 seconds (Updated from 5000ms)
 let minimumLoadingTimeElapsed = false;
 let pageContentLoaded = false;
 
